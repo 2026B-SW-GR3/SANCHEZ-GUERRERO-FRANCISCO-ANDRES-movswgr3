@@ -1,0 +1,4 @@
+<resources>
+    <color name="text_color">#000000</color> <!-- Color X -->
+    <color name="bg_color">#FFFFFF</color>   <!-- Fondo 1 -->
+</resources>

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "880454151999",
+    "project_id": "a-sw-movgr3-fasg",
+    "storage_bucket": "a-sw-movgr3-fasg.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:880454151999:android:6077c55c78aaf7cb566d8a",
+        "android_client_info": {
+          "package_name": "com.example.moviles2026a_sw_gr3"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC2FIx2-pbIREn1LAUC2U2yemb32E_A76I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
