@@ -8,46 +8,81 @@ class HiveRepository implements LocalRepository {
 
   @override
   Future<void> init() async {
-    // Si la caja ya está abierta, no hacemos nada más
     if (_box != null) return;
     
-    // Abrimos la "caja" de datos NoSQL local
-    _box = await Hive.openBox('epn_nosql_box');
+    try {
+      // LOG ESTRUCTURADO: INFO
+      print('[INFO] [Hive-NoSQL] Abriendo caja de persistencia: "epn_nosql_box".');
+      _box = await Hive.openBox('epn_nosql_box');
+    } catch (e) {
+      // LOG ESTRUCTURADO: ERROR
+      print('[ERROR] [Hive-NoSQL] Error al abrir la caja persistente: $e');
+      rethrow;
+    }
   }
 
   @override
   Future<List<DbItem>> getAllItems() async {
-    await init();
-    final List<DbItem> list = [];
-
-    // Recorremos las llaves de la base de datos NoSQL
-    for (var key in _box!.keys) {
-      final dynamic val = _box!.get(key);
-      if (val != null) {
-        // Reconstruimos el objeto desde el mapa guardado en Hive
-        list.add(DbItem(
-          id: key.toString(),
-          title: val['title'] ?? '',
-          description: val['description'] ?? '',
-        ));
+    try {
+      await init();
+      // LOG ESTRUCTURADO: DEBUG
+      print('[DEBUG] [Hive-NoSQL] Leyendo llaves dinámicas del almacén de objetos.');
+      
+      final List<DbItem> list = [];
+      for (var key in _box!.keys) {
+        final dynamic val = _box!.get(key);
+        if (val != null) {
+          list.add(DbItem(
+            id: key.toString(),
+            title: val['title'] ?? '',
+            description: val['description'] ?? '',
+          ));
+        }
       }
+
+      // LOG ESTRUCTURADO: INFO
+      print('[INFO] [Hive-NoSQL] Recuperación reactiva completada. Total: ${list.length} documentos.');
+      return list;
+    } catch (e) {
+      print('[ERROR] [Hive-NoSQL] Fallo al leer registros NoSQL: $e');
+      return [];
     }
-    return list;
   }
 
   @override
   Future<void> insertItem(DbItem item) async {
-    await init();
-    // Guardamos el mapa indexado por el ID del objeto
-    await _box!.put(item.id, {
-      'title': item.title,
-      'description': item.description,
-    });
+    try {
+      await init();
+      // LOG ESTRUCTURADO: DEBUG
+      print('[DEBUG] [Hive-NoSQL] Escribiendo par clave-valor en disco: ${item.id}.');
+
+      await _box!.put(item.id, {
+        'title': item.title,
+        'description': item.description,
+      });
+
+      // LOG ESTRUCTURADO: INFO
+      print('[INFO] [Hive-NoSQL] Documento persistido exitosamente en Hive. Clave: ${item.id}.');
+    } catch (e) {
+      print('[ERROR] [Hive-NoSQL] Fallo al escribir documento: $e');
+      rethrow;
+    }
   }
 
   @override
   Future<void> deleteItem(String id) async {
-    await init();
-    await _box!.delete(id);
+    try {
+      await init();
+      // LOG ESTRUCTURADO: DEBUG
+      print('[DEBUG] [Hive-NoSQL] Solicitando remover la llave: $id del Box.');
+
+      await _box!.delete(id);
+
+      // LOG ESTRUCTURADO: INFO
+      print('[INFO] [Hive-NoSQL] Clave removida de forma segura de la memoria NoSQL: $id.');
+    } catch (e) {
+      print('[ERROR] [Hive-NoSQL] Fallo al eliminar clave del Box: $e');
+      rethrow;
+    }
   }
 }

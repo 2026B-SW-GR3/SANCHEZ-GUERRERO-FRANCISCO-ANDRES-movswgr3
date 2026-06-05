@@ -9,52 +9,91 @@ class SqliteRepository implements LocalRepository {
 
   @override
   Future<void> init() async {
-    // Si la base de datos ya está abierta, no hacemos nada más
     if (_db != null) return;
 
-    // Obtenemos la ruta por defecto para almacenar bases de datos en Android
-    final dbPath = await sql.getDatabasesPath();
-    
-    // Abrimos (o creamos) la base de datos en el archivo 'epn_sqlite.db'
-    _db = await sql.openDatabase(
-      path.join(dbPath, 'epn_sqlite.db'),
-      onCreate: (db, version) {
-        // Creamos la tabla 'items' si la base de datos no existía previamente
-        return db.execute(
-          'CREATE TABLE items(id TEXT PRIMARY KEY, title TEXT, description TEXT)'
-        );
-      },
-      version: 1,
-    );
+    try {
+      final dbPath = await sql.getDatabasesPath();
+      final fullPath = path.join(dbPath, 'epn_sqlite.db');
+      
+      // LOG ESTRUCTURADO: INFO
+      print('[INFO] [SQLite] Inicializando base de datos en ruta: $fullPath');
+
+      _db = await sql.openDatabase(
+        fullPath,
+        onCreate: (db, version) {
+          // LOG ESTRUCTURADO: DEBUG
+          print('[DEBUG] [SQLite] Creando tabla "items" con esquema estricto relacional.');
+          return db.execute(
+            'CREATE TABLE items(id TEXT PRIMARY KEY, title TEXT, description TEXT)'
+          );
+        },
+        version: 1,
+      );
+    } catch (e) {
+      // LOG ESTRUCTURADO: ERROR
+      print('[ERROR] [SQLite] Fallo crítico al inicializar la base de datos: $e');
+      rethrow;
+    }
   }
 
   @override
   Future<List<DbItem>> getAllItems() async {
-    await init(); // Aseguramos que la DB esté abierta
-    final List<Map<String, dynamic>> maps = await _db!.query('items');
-    
-    // Mapeamos los resultados crudos a nuestra lista de objetos DbItem
-    return List.generate(maps.length, (i) => DbItem.fromMap(maps[i]));
+    try {
+      await init();
+      // LOG ESTRUCTURADO: DEBUG
+      print('[DEBUG] [SQLite] Ejecutando consulta SELECT sobre la tabla "items".');
+      
+      final List<Map<String, dynamic>> maps = await _db!.query('items');
+      final items = List.generate(maps.length, (i) => DbItem.fromMap(maps[i]));
+      
+      // LOG ESTRUCTURADO: INFO
+      print('[INFO] [SQLite] Se recuperaron exitosamente ${items.length} registros.');
+      return items;
+    } catch (e) {
+      print('[ERROR] [SQLite] Error al realizar la consulta GET: $e');
+      return [];
+    }
   }
 
   @override
   Future<void> insertItem(DbItem item) async {
-    await init();
-    await _db!.insert(
-      'items',
-      item.toMap(),
-      // Si el ID ya existe en SQLite, reemplazamos la información vieja por la nueva
-      conflictAlgorithm: sql.ConflictAlgorithm.replace,
-    );
+    try {
+      await init();
+      // LOG ESTRUCTURADO: DEBUG
+      print('[DEBUG] [SQLite] Preparando inserción del item ID: ${item.id} - Título: "${item.title}".');
+
+      await _db!.insert(
+        'items',
+        item.toMap(),
+        conflictAlgorithm: sql.ConflictAlgorithm.replace,
+      );
+
+      // LOG ESTRUCTURADO: INFO
+      print('[INFO] [SQLite] Transacción de inserción/reemplazo completada para ID: ${item.id}.');
+    } catch (e) {
+      print('[ERROR] [SQLite] Error en operación de escritura (INSERT): $e');
+      rethrow;
+    }
   }
 
   @override
   Future<void> deleteItem(String id) async {
-    await init();
-    await _db!.delete(
-      'items',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    try {
+      await init();
+      // LOG ESTRUCTURADO: DEBUG
+      print('[DEBUG] [SQLite] Solicitando eliminación física del registro con ID: $id.');
+
+      final count = await _db!.delete(
+        'items',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+
+      // LOG ESTRUCTURADO: INFO
+      print('[INFO] [SQLite] Eliminación completada. Registros afectados: $count.');
+    } catch (e) {
+      print('[ERROR] [SQLite] Error en operación de borrado (DELETE): $e');
+      rethrow;
+    }
   }
 }
