@@ -7,18 +7,23 @@ import '../mock/destinations_mock.dart';
 import '../mock/wishlist_collections_mock.dart';
 import '../mock/wishlists_mock.dart';
 
-/// Punto único de acceso a los datos del feature Explore + Wishlists.
-///
-/// Hoy: lee de los mocks en memoria (algunos se mutan en runtime para
-/// soportar el flujo optimista de UNDO en el WishlistPickerSheet).
-/// Mañana (Fase 4 real): reemplaza por HTTPClient (Dio / http). La interfaz
-/// pública se mantiene — la UI no se entera del cambio.
 class ExploreRepository {
-  ExploreRepository();
+  // Constructor privado: solo esta clase puede construir la instancia real.
+  ExploreRepository._internal();
+
+  // La única instancia que va a existir en toda la app.
+  static final ExploreRepository _instance = ExploreRepository._internal();
+
+  // Factory: cada `ExploreRepository()` devuelve _instance en vez de crear
+  // un objeto nuevo. Para el resto del código esto es transparente — se
+  // sigue escribiendo `ExploreRepository()` como siempre.
+  factory ExploreRepository() => _instance;
 
   // ────────────────────────────────────────
   // Runtime mutable state (para soportar optimistic updates).
   // En producción, esto vive en el backend con caché local.
+  // Ahora que la clase es singleton, este campo es efectivamente
+  // compartido por TODA la app.
   // ────────────────────────────────────────
   final List<WishlistCollection> _runtimeCollections =
       List.of(kMockCollections);

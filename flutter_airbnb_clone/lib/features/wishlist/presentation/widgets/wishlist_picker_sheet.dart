@@ -20,9 +20,21 @@ import '../../../../data/repositories/explore_repository.dart';
 class WishlistPickerSheet extends StatefulWidget {
   final Destination destination;
 
+  /// Se invoca cuando el usuario toca "Deshacer" en el snackbar y la
+  /// operación de undo se completó con éxito contra el repo.
+  ///
+  /// Por qué hace falta: el snackbar (y su botón "Deshacer") se sigue
+  /// mostrando DESPUÉS de que este sheet ya se cerró (`Navigator.pop`), así
+  /// que en ese momento ya no hay ningún `setState` de este widget al que
+  /// volver. Quien nos abrió (`DestinationsGrid`) nos pasa acá una función
+  /// que vuelve a leer el repo y actualiza los corazones del feed — nosotros
+  /// solo la llamamos en el momento justo.
+  final VoidCallback? onUndo;
+
   const WishlistPickerSheet({
     super.key,
     required this.destination,
+    this.onUndo,
   });
 
   /// Helper de show con la configuración correcta del modal.
@@ -30,13 +42,17 @@ class WishlistPickerSheet extends StatefulWidget {
   static Future<bool> show({
     required BuildContext context,
     required Destination destination,
+    VoidCallback? onUndo,
   }) async {
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withOpacity(.45),
-      builder: (_) => WishlistPickerSheet(destination: destination),
+      builder: (_) => WishlistPickerSheet(
+        destination: destination,
+        onUndo: onUndo,
+      ),
     );
     return result == true;
   }
@@ -183,6 +199,12 @@ class _WishlistPickerSheetState extends State<WishlistPickerSheet> {
                   destinationId: widget.destination.id,
                 );
               }
+              // Avisamos al feed (DestinationsGrid) que vuelva a leer el
+              // repo y repinte los corazones. Esto es lo que faltaba: sin
+              // este llamado, el dato se revertía en el repo pero nadie en
+              // pantalla se enteraba.
+              widget.onUndo?.call();
+
               // Emitimos un segundo snackbar para confirmar el undo.
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(

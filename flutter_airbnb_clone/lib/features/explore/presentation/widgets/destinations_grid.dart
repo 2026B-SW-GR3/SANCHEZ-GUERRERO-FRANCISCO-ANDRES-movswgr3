@@ -5,6 +5,33 @@ import '../../../../data/repositories/explore_repository.dart';
 import '../../../wishlist/presentation/widgets/wishlist_picker_sheet.dart';
 import 'destination_card.dart';
 
+/// Grid vertical (2 columnas) de alojamientos — el feed principal de Explore.
+///
+/// PERFORMANCE HIGHLIGHTS:
+///  - `GridView.builder` con `SliverGridDelegateWithFixedCrossAxisCount`:
+///    al fijar el ancho de cada celda, Flutter sabe el layout sin medir cada
+///    item → reduce trabajo por frame.
+///  - Paginación infinita: el listener del scroll detecta cuando el usuario
+///    está al 80% del final y dispara la carga del siguiente batch.
+///  - `setState` solo cuando hay cambio real de datos (nueva página cargada).
+///
+/// FIX DEL OVERFLOW (las franjas amarillo/negro "BOTTOM OVERFLOWED"):
+///  Antes, la celda usaba `childAspectRatio: 0.72`, que ata el alto de la
+///  celda al ANCHO de columna con una proporción fija. El problema es que
+///  la card NO es "toda proporcional": la foto (`_PhotoArea`) es 1:1 (su
+///  alto SIEMPRE es igual al ancho de columna), pero el bloque de texto de
+///  abajo (`_InfoArea`) tiene una altura FIJA en píxeles (nombre + ubicación
+///  + precio + rating + paddings ≈ 96 px) que NO escala con el ancho de
+///  pantalla. Un `childAspectRatio` único no puede representar "una parte
+///  cuadrada + una parte fija" para todos los anchos de pantalla — en
+///  pantallas angostas terminaba dejando menos alto real del que el texto
+///  necesitaba, y el texto se salía de la celda.
+///
+///  La solución: en vez de `childAspectRatio`, calculamos un
+///  `mainAxisExtent` EXACTO en píxeles = alto de la foto (= ancho de
+///  columna, por ser 1:1) + alto fijo medido de `_InfoArea`. Así cada celda
+///  siempre tiene el alto justo que necesita, sin importar el ancho de
+///  pantalla del dispositivo.
 class DestinationsGrid extends StatefulWidget {
   final String? categoryId;
 
@@ -156,21 +183,13 @@ class _DestinationsGridState extends State<DestinationsGrid> {
     return widget.wishlistedIds.contains(id);
   }
 
-  /// Abre el picker en lugar del toggle sordo.
-  /// Cuando el sheet cierra con `true`, refrescamos el estado global
-  /// (recargando wishlistedIds del repo) para que el corazón de la card
-  /// refleje el estado real.
-  Future<void> _onWishlistTap(Destination d) async {
-    final didChange = await WishlistPickerSheet.show(
-      context: context,
-      destination: d,
-    );
-
-    if (didChange != true) return;
+  /// Re-lee el estado real de wishlists del repo y se lo pasa al padre.
+  /// Se usa en DOS momentos: (1) apenas cierra el picker sheet, y
+  /// (2) cuando el usuario toca "Deshacer" en el snackbar — porque ese
+  /// botón vive en un widget que YA se cerró, así que no puede tocar nuestro
+  /// setState directamente. Por eso se lo pasamos como callback (onUndo).
+  Future<void> _refreshWishlistState(Destination d) async {
     if (!mounted) return;
-
-    // Invalidamos la caché optimista local — re-pedimos al repo para
-    // reflejar el estado real después del sheet.
     final ids = await _repo.getAllWishlistedDestinationIds();
     if (!mounted) return;
     setState(() {
@@ -178,6 +197,32 @@ class _DestinationsGridState extends State<DestinationsGrid> {
       _wishlistLocallyRemoved.clear();
     });
     widget.onWishlistToggle(d, ids); // firma extendida (ver ExploreScreen)
+  }
+
+  /// Abre el picker en lugar del toggle sordo.
+  /// Cuando el sheet cierra con `true`, refrescamos el estado global
+  /// (recargando wishlistedIds del repo) para que el corazón de la card
+  /// refleje el estado real.
+  ///
+  /// FIX "Deshacer no hace nada": antes solo refrescábamos acá, justo
+  /// después de que el sheet se cierra. Pero "Deshacer" se toca DESPUÉS de
+  /// eso (el sheet ya está cerrado), y esa acción vive dentro del propio
+  /// WishlistPickerSheet, que no tenía forma de avisarle al grid que volviera
+  /// a refrescar. Por eso ahora le pasamos `onUndo`: un callback que hace
+  /// exactamente el mismo refresh, y que el sheet puede invocar cuando el
+  /// usuario deshace la acción, sin importar que ya esté cerrado.
+  Future<void> _onWishlistTap(Destination d) async {
+    final didChange = await WishlistPickerSheet.show(
+      context: context,
+      destination: d,
+      onUndo: () => _refreshWishlistState(d),
+    );
+
+    if (didChange != true) return;
+
+    // Invalidamos la caché optimista local — re-pedimos al repo para
+    // reflejar el estado real después del sheet.
+    await _refreshWishlistState(d);
   }
 
   // ─── UI ─────────────────────────────────────
