@@ -217,7 +217,9 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
           )
         ],
       ),
-      body: _esperandoPedido ? _buildPantallaEspera() : _buildPantallaMapa(),
+      body: SafeArea(
+        child: _esperandoPedido ? _buildPantallaEspera() : _buildPantallaMapa(),
+      ),
     );
   }
 
